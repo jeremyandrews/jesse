@@ -8,7 +8,7 @@ The diet dashboard is your **current-state summary** for any given day. It answe
 - How much intake relative to target?
 - Which macros need attention before the day ends?
 - What's the net balance (intake minus exercise)?
-- How am I tracking against weight-loss pace?
+- How am I tracking against my goal pace (loss, maintenance, recomp, or gain)?
 
 Dashboards appear in two contexts:
 1. **Daily journal** (`todo-list/Projects/Diet/YYYY-MM-DD.md`) — rendered at the top after your morning weigh-in and updated throughout the day.
@@ -33,97 +33,96 @@ Components:
 
 ### Macro Bars (20 chars wide)
 
-```
-Cal      🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜    625 / 1,942   (32%)
-  Net    ░░░░░░░░░░░░░░░░░░░░     25 / 1,942         ← after 600 cal run
-Protein  🟨🟨🟨🟨🟨🟨🟨⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜     51g / 150g    (34%)
-Carbs    🟥🟥⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜     18g / 180g    (10%)  ← low
-Fat      🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜     36g / 70g     (51%)
+Each bar carries a **goal chip** — a colored marker showing its metric type (floor `≥`, ceiling `≤`, window `↕`) — so the type is readable at a glance. A compact, fully-colored **legend** sits at the bottom of the panel.
 
+```
+Cal    ≤  🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜    625 / 1,942   (32%)
+  Net    ░░░░░░░░░░░░░░░░░░░░     25 / 1,942         ← after 600 cal run
+Prot   ≥  🟨🟨🟨🟨🟨🟨🟨⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜     51g / 150g    (34%)
+Carbs  ≥  🟥🟥⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜     18g / 180g    (10%)
+Fat    ↕  🟥🟥🟥🟥🟥⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜     18g / 35–70g  (under floor)
+
+≥ floor (at or above) · ≤ cap (at or under) · ↕ window (in range)
 Remaining (baseline): ~1,317 cal, 99g protein
 ```
 
+The chip is the first token after the label; in chat use the symbol (`≥` `≤` `↕`). In the HTML it is a small colored chip — green floor, blue cap, amber window (see [[Knowledge/Jesse-Guidelines/Fancy-Dashboard-Build]]).
+
 #### Row Layout
 
-**Calories (floor metric — lower bound)**
-- Line 1: Full intake vs adaptive target
-- Line 2 (indented `Net`): Intake minus exercise calories (informational, always ░ gray, shown only when exercise is logged)
+**Calories** — ceiling on normal days, window on high-fuel days (the `dayStyle` decides; see the Day-Style Registry in [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]]).
+- Line 1: full intake vs the adaptive target
+- Line 2 (indented `Net`): intake minus the discounted exercise burn (informational, always ░ gray, shown only when exercise is logged)
 
-**Protein** (floor metric)
-- Goal: user defines in `Overview.md`
+**Protein** — floor. Goal from `Overview.md`.
 
-**Carbs** (floor metric)
-- Goal: user defines in `Overview.md`
+**Carbs** — floor (remainder). Goal from `Overview.md`.
 
-**Fat** (ceiling metric — upper bound)
-- Goal: user defines in `Overview.md`
+**Fat** — window: a floor *and* a cap. Shows `actual / floor–cap`. On carb-load styles it becomes a minimize-it ceiling instead.
 
-**Remaining line** (informational, not a bar)
-- Summarizes unmet baseline target and protein gap
-- Helps plan remaining meals
+**Legend** (bottom of the panel) — one compact line, each item fully colored.
+
+**Remaining line** (informational, not a bar) — summarizes unmet baseline calories and the protein gap.
 
 #### Bar Rules
 
 **Physical:**
 - Each bar is exactly **20 characters** wide
 - Empty position = `⬜`
-- Filled positions: all blocks use the **same color** for that metric (consistency rule)
-- Percentage calculation: `(actual / target) × 100`, rounded to nearest integer
-- If percentage rounds to 100%, the bar **must** be fully filled (20/20 blocks)
+- Filled positions all use the **same color** for that metric (consistency rule)
+- Percentage: `(actual / target) × 100`, rounded to nearest integer
+- If the percentage rounds to 100%, the bar **must** be fully filled (20/20 blocks)
 
-**Color Zones (Floor Metrics: Calories, Protein, Carbs)**
-- **0–49%:** 🟥 Red (low)
-- **50–79%:** 🟨 Yellow (moderate, may want to eat more)
-- **80–100%:** 🟩 Green (on target)
-- **>100%:** 🟩 Green + overage badge (e.g., `[+15g over]`)
+#### Color Zones by Metric Type
 
-**Color Zones (Ceiling Metrics: Fat on normal days, normal-day calories)**
-- **0–79%:** 🟩 Green (good)
-- **80–99%:** 🟨 Yellow (approaching limit)
-- **≥100%:** 🟥 Red + overage badge (e.g., `[+5g over]`)
+The type comes from the macro model ([[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]]); bar colors are **never** time-gated (only the textual flags are).
 
-**Special: Net Calories Line**
-- Always render as ░ (light gray blocks, not colored)
-- Purpose: show the informational net after exercise, no goal zone
-- Only appears if exercise is logged
+**Floor** (protein, carbs) — percent of the floor:
+- **0–49%:** 🟥 red
+- **50–79%:** 🟨 yellow
+- **80–100%:** 🟩 green
+- **>100%:** 🟩 green (with optional `[+Ng over]` badge)
+
+**Ceiling** (calories on normal days; fat on carb-load styles) — percent of the cap:
+- **0–79%:** 🟩 green
+- **80–100%:** 🟨 yellow (approaching limit)
+- **>100%:** 🟥 red + overage badge
+
+**Window** (fat normally; calories on high-fuel days) — relative to floor *and* cap. Unlike a pure ceiling, a window colors **red when too LOW**:
+- **below floor:** 🟥 red (too low)
+- **floor to 80% of cap:** 🟩 green (in window)
+- **80–100% of cap:** 🟨 yellow (approaching cap)
+- **over cap:** 🟥 red
+
+**Net calories line** — always ░ light-gray blocks, never colored, no goal zone; only appears when exercise is logged.
 
 ---
 
 ## Adaptive Calorie Target
 
-The calorie target adjusts automatically based on exercise, removing the need for rigid day-type categories.
+The calorie target rises with logged exercise in two steps — discount the tracker's overestimate, then add back only half — so day-type categories aren't needed for rest vs. training. Full rationale and the parameter table are in [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]].
 
 ### Formula
 
 ```
-Adaptive Target = Base Target + (Exercise Calories × Adjustment Rate)
+Calorie target = [BASE_TARGET] + [ADD_BACK_RATE] × ([LOGGED_EXERCISE_CAL] × (1 − [TRACKER_HAIRCUT]))
 ```
 
-**Base Target**
-- User defines this in `todo-list/Projects/Diet/Overview.md`
-- Typically: TDEE − desired daily deficit (e.g., 2,000 − 100 = 1,900)
+- `[TRACKER_HAIRCUT]` (default 0.25): wearables and machines overestimate burn — discount first.
+- `[ADD_BACK_RATE]` (default 0.50): eat back only half of the discounted burn.
+- `[BASE_TARGET]`: from the setup wizard ([[Knowledge/Jesse-Guidelines/Diet-Setup-Wizard]]), defined in `Overview.md`.
 
-**Adjustment Rate**
-- Default: 7% of exercise calories
-- User can override in `Overview.md` (e.g., "Rate: 10%" for aggressive, "Rate: 5%" for conservative)
-- Rationale: typical efficiency loss in fueling exercise; not a 1:1 eat-back model
-
-**No Exercise**
-- Adaptive Target = Base Target
-- Single calorie line shown (Cal, no Net)
-
-**Exercise Logged**
-- Both lines appear: Cal (colored, vs adaptive target) and Net (gray, informational)
-- Exercise burns energy; target rises to account for the additional fuel demand
+**No exercise** → target stays at `[BASE_TARGET]`; single calorie line (Cal, no Net).
+**Exercise logged** → both lines appear: Cal (colored, vs the adaptive target) and Net (gray, informational).
 
 ### Example Scenarios
 
-| Base | Exercise | Rate | Adaptive | Notes |
-|------|----------|------|----------|-------|
-| 1,900 | 600 cal | 7% | 1,942 | 600 × 0.07 = 42 cal added |
-| 1,900 | 200 cal | 7% | 1,914 | 200 × 0.07 = 14 cal added |
-| 1,900 | 0 cal | 7% | 1,900 | No exercise = baseline |
-| 1,900 | 800 cal | 10% | 1,980 | User-set 10% rate: 800 × 0.10 = 80 added |
+| Base | Logged burn | After haircut (×0.75) | After add-back (×0.50) | Target |
+|------|-------------|-----------------------|------------------------|--------|
+| `[BASE_TARGET]` | 600 | 450 | 225 | base + 225 |
+| `[BASE_TARGET]` | 800 | 600 | 300 | base + 300 |
+| `[BASE_TARGET]` | 1,500 | 1,125 | ~563 | base + 563 |
+| `[BASE_TARGET]` | 0 | 0 | 0 | base (rest day) |
 
 ---
 
@@ -145,42 +144,46 @@ Adaptive Target = Base Target + (Exercise Calories × Adjustment Rate)
 ### Example
 
 ```
-Cal      🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜    625 / 1,942   (32%)
+Cal    ≤  🟩🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜⬜    625 / 1,942   (32%)
   Net    ░░░░░░░░░░░░░░░░░░░░     25 / 1,942         ← net after 600 cal exercise
 ```
 
-- Intake: 625 cal
-- Exercise: 600 cal
-- Adaptive target: 1,942 (1,900 baseline + 7% of 600)
+- Intake: 625 cal; logged burn: 600 cal
+- Adaptive target: 1,942 (base + 0.50 × (600 × 0.75) = base + 225)
 - Cal line: 625 / 1,942 = 32% (green, well under target)
-- Net line: (625 − 600) / 1,942 = 25 / 1,942 (gray, informational: you've consumed 25 cal net of activity, showing strong recovery fuel availability)
+- Net line: (625 − 600) / 1,942 = 25 / 1,942 (gray, informational — consumed 25 cal net of activity)
 
 ---
 
 ## Flags
 
-Flags are **one-line markers** that appear at the end of rows to highlight attention zones. They do not lecture; they state facts that help you make decisions.
+Flags are **one-line markers** at the end of rows. They state facts; they don't lecture.
 
-### Flag Triggers
+### Time-Gated Low Flags (HARD RULE)
 
-**Post-breakfast (after logging breakfast meal):**
-- Protein < 25g → `← low` (undershot early protein opportunity)
+Under-floor "you're low" flags are noise mid-day — an unfilled floor before the last meal is expected, not a problem. **Gate them to render only after `[LOW_FLAG_HOUR]` (default 16:00 local).** Over-cap flags are never gated — going over is a problem whenever it happens. **Bar colors are never gated, only the textual flags.**
 
-**Post-lunch (after logging lunch meal), only on exercise days:**
-- Carbs < 30% of daily target → `← low` (underfueled for afternoon activity)
+| Flag | Trigger | Gated? |
+|------|---------|--------|
+| Protein low | protein < ~90% of floor | yes — after `[LOW_FLAG_HOUR]` |
+| Fat under floor | fat < floor | yes — after `[LOW_FLAG_HOUR]` |
+| Carbs low | carbs < floor | yes — after `[LOW_FLAG_HOUR]` |
+| Fat over cap | fat > cap | no |
+| Calories over | calories > ceiling (or over the window cap) | no |
+| Calories high | calories ≥ 90% of ceiling with meals remaining | no |
 
-**Any meal:**
-- Fat ≥80% of daily target → `← high` (approaching ceiling)
-
-**End-of-day (before evening meal or at day-end summary):**
-- Calories ≥90% of adaptive target with logged meals remaining → `← high` (little room for evening intake)
+In the HTML, the gate is `new Date().getHours() >= [LOW_FLAG_HOUR]` (see [[Knowledge/Jesse-Guidelines/Fancy-Dashboard-Build]]). Inline (chat) ASCII receipts use the same gate from the current local hour so the two displays agree.
 
 ### Behavior
 
-- Flags appear inline on the affected row (e.g., `Carbs    🟥🟥⬜⬜ ... 18g / 180g   (10%)  ← low`)
+- Flags appear inline on the affected row
 - No explanations or suggestions — the flag is the nudge
-- If a flag no longer applies (e.g., you ate breakfast protein and now you're at 50%), remove the flag on the next dashboard update
-- Multiple flags per row are okay (e.g., `← low and approaching window`)
+- A flag that no longer applies is removed on the next dashboard update
+- Multiple flags per row are fine
+
+### Floor-Miss Trend (across days)
+
+A single under-floor day is an incident; a floor missed on `[FLOOR_MISS_COUNT]`+ of the trailing `[FLOOR_MISS_WINDOW]` logged days (defaults 3 of 7) is a trend. It is **not** a per-day flag — it surfaces in the coach's notes and the weekly report. Full definition in [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]].
 
 ---
 
@@ -228,25 +231,16 @@ Fancy dashboard build rules live in [[Knowledge/Jesse-Guidelines/Fancy-Dashboard
 
 ---
 
-## Event-Prep Mode Overrides
+## Day Styles (Event-Prep, Refeed, Sick, Carb-Load)
 
-Users may want temporary target adjustments (carb-loading, refeed days, diet breaks, event prep). When active, targets and color zones shift.
+Temporary target adjustments — carb-loading, refeed/diet-break, illness, endurance fueling, fasting — are handled by the **Day-Style Registry**, the canonical table in [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]]. The registry maps each `dayStyle` to its bar *types* (which macro is a floor, ceiling, or window); the target *numbers* come from `targets` in `diet-today.js`.
 
-**How to set up:**
-- Add to `Overview.md`: `Mode: carb-load | Period: Mar 27–29 | Targets: Cal 2,200, Carbs 300g`
-- Can define multiple modes (carb-load, refeed, maintenance, etc.)
+**How it drives the dashboard:**
+- Set `dayStyle` in `diet-today.js` (e.g. `"refeed"`, `"carb-load-race"`); the human-readable `dayType` shows in the header.
+- The HTML's `STYLE_PROFILES` map (kept in sync with the registry) resolves the bar types — e.g. on carb-load, calories become a **window** and fat a **minimize-it ceiling**; on a normal day, calories are a ceiling and fat a window.
+- The same numbers and types are used by the inline ASCII receipt and the HTML, so the two always agree.
 
-**Dashboard behavior when mode is active:**
-- Header shows mode: `=== Mon Mar 30 | CARB-LOAD MODE | Target: 2,200 ===`
-- Macro bars use the mode's targets and may shift color zones
-  - Example: in carb-load, a 200g carb target shifts the zone boundaries → what was "high" (80%+) at 180g is now "on track" at 200g
-- Mode applies only during the specified period; reverts to baseline after
-
-**Color zone shifts in modes:**
-- Ceiling metrics (calories, fat) may become floor metrics in a refeed (you want to *reach* the carb target)
-- Consult the mode definition in `Overview.md` for the exact rules; apply them consistently
-
-No mode = use base targets from `Overview.md`.
+No `dayStyle` → `normal` (calories ceiling, fat window, protein and carbs floors).
 
 ---
 

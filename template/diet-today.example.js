@@ -8,17 +8,30 @@
 window.DIET_TODAY = {
   // Date context
   date: "2026-05-08",
-  dayLabel: "Thu May 8",
-  dayType: "Training day — 7.2km run",
-  mode: null,                   // null, or e.g. "CARB-LOAD DAY 1/2"
+  dayType: "Training day — 7.2km run",  // free-text human label (shown in the header)
+  dayStyle: "normal",                   // machine field; key into the Day-Style Registry
+                                        // normal | long-run | endurance | refeed | sick |
+                                        // carb-load-training | carb-load-race | fasting
+  mode: null,                           // legacy banner; null on normal days
 
-  // Targets (from Overview.md, adjusted for exercise)
+  // Targets (numbers from Overview.md, adjusted for the exercise add-back).
+  // Bar TYPES (floor/ceiling/window) come from dayStyle, not from here.
   targets: {
-    calories: 1942,             // adaptive: 1900 base + 7% of 600 cal run
-    protein: 150,
-    fat: 70,
-    carbs: 180
+    calories: 1942,             // adaptive: 1900 base + 0.50 × (600 × 0.75 haircut) = base + 225
+    caloriesCap: null,          // upper bound on window (carb-load) days; null = pure ceiling
+    protein: 150,               // protein floor
+    fat: 70,                    // fat cap (ceiling component of the fat window)
+    fatFloor: 35,               // fat floor (lower bound); null = treat fat as a pure ceiling
+    carbs: 180                  // carb floor (remainder)
   },
+
+  // ---------------------------------------------------------------------------
+  // Carb-load example (replace the block above on a carb-load day):
+  //   dayStyle: "carb-load-race",
+  //   targets: { calories: 2400, caloriesCap: 2600,   // calories render as a WINDOW
+  //              protein: 150, fat: 50, fatFloor: null, // fat is a minimize-it ceiling
+  //              carbs: 450 }                           // high carb floor
+  // ---------------------------------------------------------------------------
 
   // Weight (if logged today; omit or null if no weigh-in)
   weight: null,

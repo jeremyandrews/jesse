@@ -21,6 +21,16 @@ Deliver in conversation with four sections — honest, not gentle:
 
 **Ranked improvement suggestions:** Specific and actionable, not generic. "Add a protein shake on rest days (120 cal, 24g protein, closes the gap on 5 of 7 days)" — not "eat more protein."
 
+### Floor-Miss Pattern (required check)
+
+Compute the floor-miss trend across the trailing `[FLOOR_MISS_WINDOW]` logged days (default 7) per [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]]:
+
+- **Protein** missed on a day = below ~90% of the protein floor.
+- **Fat** missed on a day = below the fat floor.
+- Exclude `sick` days (and, for fat, `fasting` days) — low intake is expected then.
+
+If a floor was missed on `[FLOOR_MISS_COUNT]`+ of those days (default 3), surface it explicitly as a **pattern** (state the count, e.g. "protein under floor 4 of 7 days") in *The Bad* or *The Ugly* and address it in the ranked suggestions. A pattern is a trend, not an isolated incident — don't flag a single miss.
+
 ## Saved Report
 
 Write to `Knowledge/Health/Weekly-Diet-Analysis/YYYY-MM-DD.md`:
@@ -42,6 +52,7 @@ Write to `Knowledge/Health/Weekly-Diet-Analysis/YYYY-MM-DD.md`:
 - Exercise sessions: X/Y planned
 - Total exercise calories: X
 - Weight change: start → end (delta)
+- Floor misses: protein X/7 days, fat X/7 days (flag as a pattern at the configured threshold)
 
 ## The Great
 ## The Good

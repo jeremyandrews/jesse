@@ -1,6 +1,6 @@
 # Diet & Exercise Tracking
 
-Daily nutrition and exercise tracking with a Markdown journal, Excel spreadsheets, a chat dashboard, and a live HTML dashboard. Includes weight tracking with progress visualization, body composition metrics, tiered adaptive calorie targets, carb-load day protocol, alcohol enforcement, and weekly accountability reports.
+Daily nutrition and exercise tracking with a Markdown journal, Excel spreadsheets, a chat dashboard, and a live HTML dashboard. Includes a first-run setup wizard that derives your targets from first principles, a floors/ceilings/windows macro model, an extensible day-style registry, adaptive calorie targets with a tracker-overestimation haircut, weight tracking with progress visualization, body composition metrics, alcohol enforcement, and weekly accountability reports.
 
 > **This recipe is optional.** When disabled, the assistant never mentions food, calories, exercise, or weight tracking. It does not include meal planning, recipe suggestions, diet advice, or nutrition coaching. The system records and displays -- it doesn't lecture.
 
@@ -12,10 +12,53 @@ Daily nutrition and exercise tracking with a Markdown journal, Excel spreadsheet
 - **Live HTML dashboard** -- `Dashboard-Fancy.html` at vault root; static weight chart and pace bars rebuilt on weigh-in, dynamic macro bars updated on every log via `diet-today.js`
 - **Weight tracking** -- Two progress bars toward user goals, trend analysis, body composition metrics (optional), phases for different training cycles
 - **Coach's Notes Log** -- `Knowledge/Health/Coach-Notes-Log.md` tracks dashboard notes across days for consistency; prevents advice from contradicting itself or chasing noise
-- **Weekly accountability** -- Sunday routine with automated analysis report (four sections: Great, Good, Bad, Ugly) saved to Knowledge/Health/Weekly-Diet-Analysis/
-- **Adaptive calorie target** -- Tiered exercise adjustment (7% for normal sessions, 10% for high-volume days) prevents under-fueling without eating back the full burn
-- **Carb-load day protocol** -- Two-day window target with calorie range, carb floor, fat ceiling, three-point cross-check, and dashboard mode banner
+- **Weekly accountability** -- Sunday routine with automated analysis report (four sections: Great, Good, Bad, Ugly) plus a floor-miss pattern check, saved to Knowledge/Health/Weekly-Diet-Analysis/
+- **Setup wizard** -- A first-run conversational flow that computes your calorie and macro targets from age, height, weight, body composition, activity, and goal; uses the sex-independent Katch-McArdle formula when body-fat % is known and self-corrects via a calibration loop
+- **Floors / ceilings / windows macro model** -- Each macro is a floor (protein, carbs), a ceiling (calories), or a window (fat); goal chips, bar colors, and flags all derive from the type
+- **Day-style registry** -- An extensible table of day styles (normal, endurance, refeed, sick, carb-load, fasting) that sets which macros are floors, ceilings, or windows for the day
+- **Adaptive calorie target** -- Exercise add-back with an overestimation haircut: discount the logged burn (default 25%), then eat back only half — keeps training-day deficits meaningful without trusting noisy tracker estimates
 - **Alcohol enforcement** -- Alcohol always logged as a separate entry; next-day journal note required with calorie count and percentage of daily target
+
+## Getting Started: The Setup Wizard
+
+The tracker works for anyone — weight loss, maintenance, recomposition, or athletic training, for any sex — without hand-tuning targets. The first time you turn it on (or say "set up my diet targets"), the assistant runs a short conversational **setup wizard** that derives your starting calorie and macro targets from first principles. Full spec: `Knowledge/Jesse-Guidelines/Diet-Setup-Wizard.md`.
+
+It asks, in order: units, age, height, current and goal weight, **body-fat % if you know it**, sex *only if body-fat % is unknown*, lifestyle activity level (excluding workouts — those are added per-session), your goal and target rate, and any training events.
+
+**How your targets are computed:**
+
+- **BMR.** If you know your **body-fat %**, the wizard uses **Katch-McArdle** (`BMR = 370 + 21.6 × lean-mass-kg`) — it's based on lean mass, so it's both more accurate and needs no sex input at all. Otherwise it uses **Mifflin-St Jeor**, which needs a sex coefficient (`+5` male / `−161` female).
+- **TDEE** = BMR × your activity factor (lifestyle only).
+- **Base calorie target** = TDEE minus a deficit (loss), TDEE (maintain), or plus a surplus (gain), capped at ~1% bodyweight/week of loss to protect lean mass.
+- **Macros:** protein floor (~1.8–2.2 g/kg), fat floor (~0.5 g/kg) up to a calorie-share cap, carbs as the remainder.
+
+**Sex is a calculation input, not an identity question.** The coefficient reflects average lean-mass differences. If you'd rather not answer, you can enter a measured BMR/TDEE from a lab test or tracker, or use the midpoint of the two coefficients — and either way the **calibration loop** corrects everything from your real data after 2–3 weeks of logging (comparing your actual weight trend to the prediction, 7,700 kcal ≈ 1 kg). The initial estimate is just a seed.
+
+### The macro model: floors, ceilings, and windows
+
+Every macro target is one of three types, and the type — not the number — decides what "good" looks like and how the bar is colored:
+
+| Type | Symbol | Good means | Examples |
+|------|--------|------------|----------|
+| **Floor** | `≥` | at or above target | protein, carbs |
+| **Ceiling** | `≤` | at or under target | calories on normal days |
+| **Window** | `↕` | between a floor and a cap | fat (floor + cap); calories on high-fuel days |
+
+Protein is a floor because, on a deficit, adequate protein is what makes you lose fat instead of muscle. Fat is a *window*, not just a cap: too little fat suppresses hormones and blocks fat-soluble vitamin absorption (a risk that rises with age and at low body-fat), so the fat bar turns **red when you're too low**, not only when you're over. Carbs are a remainder floor. Each dashboard bar shows a colored goal chip for its type, and a compact legend sits at the bottom of the macro panel.
+
+### Adaptive calorie target (the exercise haircut)
+
+Logged exercise raises your calorie target in two steps, because trackers overestimate burn and eating back the full burn erases your deficit:
+
+```
+Calorie target = base + 0.50 × (logged burn × (1 − 0.25))
+```
+
+First discount the logged burn by 25% (the tracker haircut — swims and ellipticals over-report the most), then add back only half. A 1,000-kcal logged session raises your target by ~375, not 500. Both rates are configurable. Rest days log no exercise, so the target stays at base — rest vs. training is handled by the add-back, not a separate category.
+
+### Day styles
+
+Most days are `normal`. For special days, set a **day style** and the dashboard reshapes the bars accordingly — for example, on a carb-load day calories become a *window* and fat a *minimize-it ceiling* to free room for carbs. The styles ship as an extensible registry (`normal`, `long-run`/`endurance`, `refeed`, `sick`, `carb-load-training`, `carb-load-race`, `fasting`); adding one is a single table row. The canonical table lives in `Diet-Logging-Flow.md`, and the HTML keeps a matching `STYLE_PROFILES` map in sync.
 
 ## Vault Structure
 
@@ -30,8 +73,9 @@ Projects/
     YYYY-MM-DD.md            # Daily journals (one per day)
 Knowledge/
   Jesse-Guidelines/
-    Diet-Logging-Flow.md           # Per-log-event flow, diet-today.js spec, alcohol/carb-load rules
-    Diet-Dashboard-Guidelines.md   # ASCII dashboard format, colored bars, flags, sync rules
+    Diet-Setup-Wizard.md           # First-run target derivation (BMR/TDEE, macros, calibration)
+    Diet-Logging-Flow.md           # Per-log-event flow, diet-today.js spec, macro model, day-style registry
+    Diet-Dashboard-Guidelines.md   # ASCII dashboard format, goal chips, floor/ceiling/window colors, gated flags
     Weight-Tracker-Guidelines.md   # Weight tracking, progress bars, trends, phases
     Fancy-Dashboard-Build.md       # HTML dashboard architecture — single source of truth
     Sunday-Weekly-Diet-Analysis.md # Weekly accountability report format
@@ -97,23 +141,27 @@ Your personal goals drive progress bars and phases. Examples:
 | Fat | [calculated] | [calculated] | [calculated] |
 
 **How adaptive targets work:**
-- **Base calories:** Your maintenance or deficit/surplus baseline (e.g. TDEE - 300 for a cut)
-- **Exercise multiplier:** 7% by default (suggested for most people). Multiply exercise calories burned × 0.07 and add to base target.
-  - Example: 800 kcal run × 0.07 = +56 cal → target becomes 1,900 + 56 = 1,956 cal
-  - This prevents bonking without eating back the full burn
-  - Edit the multiplier in Diet-Dashboard-Display.md to adjust
+- **Base calories:** Your maintenance or deficit/surplus baseline (e.g. TDEE − 300 for a cut). The setup wizard derives this; see `Diet-Setup-Wizard.md`.
+- **Exercise add-back with haircut:** discount the logged burn by `[TRACKER_HAIRCUT]` (default 25%), then add back `[ADD_BACK_RATE]` (default 50%): `base + 0.50 × (burn × 0.75)`.
+  - Example: 800 kcal run → 800 × 0.75 = 600, × 0.50 = +300 → target becomes 1,900 + 300 = 2,200 cal
+  - Discounting first guards against noisy tracker estimates; eating back only half keeps the deficit meaningful
+  - Edit `[TRACKER_HAIRCUT]` and `[ADD_BACK_RATE]` here to adjust
 
-**Macros:**
-- Protein: set first, then carbs and fat split the remaining calories
-- Fat: ~30% of base calorie target / 9 cal per gram
-- Carbs: remainder after protein and fat
+**Macros (floors, ceilings, windows):**
+- Protein: a **floor** (≥), set first — ~1.8–2.2 g/kg, higher while cutting
+- Fat: a **window** (↕) — a floor (~0.5 g/kg, protects hormones and vitamin absorption) up to a cap (~30% of calories / 9 cal per gram)
+- Carbs: a **floor** (≥), the remainder after protein and fat
+- Calories: a **ceiling** (≤) on normal days; a window on high-fuel days
 
-## Day Types
+## Day Styles
 
-Define what qualifies as each type for your schedule:
-- **Rest day:** No structured training (walking, light activity is fine)
-- **Training day:** Structured run, bike, swim, gym session, or sports
-- **Long event day:** Runs/rides over [X] km, races, multi-hour activities
+Most days are `normal` (rest or training — the exercise add-back differentiates them). Set a `dayStyle` only for special days; the registry in `Diet-Logging-Flow.md` is canonical:
+- **`normal`:** default — calories ceiling, fat window, protein/carbs floors
+- **`long-run` / `endurance`:** a long session that day; adds a glycogen carb bonus
+- **`refeed`:** periodic diet-break on a long cut; pauses the deficit, extra calories to carbs
+- **`sick`:** illness/recovery; eat to maintenance, floor-miss flags suppressed
+- **`carb-load-training` / `carb-load-race`:** before a long event; calories become a window, fat a minimize-it ceiling
+- **`fasting`:** optional, off by default; confirm your protocol's numbers
 
 ## Weight Phases
 
@@ -169,11 +217,12 @@ The template ships these files in `Knowledge/Jesse-Guidelines/`. Copy them to yo
 
 | File | Purpose |
 |------|---------|
-| `Diet-Logging-Flow.md` | Per-log-event flow, `diet-today.js` spec, alcohol rules, carb-load protocol, tiered exercise adjustment |
-| `Diet-Dashboard-Guidelines.md` | ASCII dashboard format, colored emoji bars, flags, adaptive targets, sync rules |
+| `Diet-Setup-Wizard.md` | First-run target derivation — BMR/TDEE math, sex/non-binary handling, macros, calibration loop |
+| `Diet-Logging-Flow.md` | Per-log-event flow, `diet-today.js` spec, macro model, calorie haircut formula, Day-Style Registry, floor-miss monitoring |
+| `Diet-Dashboard-Guidelines.md` | ASCII dashboard format, goal chips, floor/ceiling/window colors, time-gated flags, sync rules |
 | `Weight-Tracker-Guidelines.md` | Weight tracking, 14-day dual regression, progress bars, phases, body composition |
 | `Fancy-Dashboard-Build.md` | HTML dashboard architecture — single source of truth for `Dashboard-Fancy.html` |
-| `Sunday-Weekly-Diet-Analysis.md` | Weekly accountability report format (Great / Good / Bad / Ugly) |
+| `Sunday-Weekly-Diet-Analysis.md` | Weekly accountability report format (Great / Good / Bad / Ugly) + floor-miss pattern |
 
 Also copy `Knowledge/Health/Coach-Notes-Log.md` from the template.
 
@@ -280,7 +329,7 @@ The system maintains two live views of today's data:
 3. Rewrites `diet-today.js`; ASCII dashboard shows two-line calorie display:
    - Line 1: baseline intake vs. adaptive target
    - Line 2: net (intake − burn), gray bars, informational only
-4. Adaptive target uses tiered exercise adjustment: ≤1,500 cal burned → 7%; >1,500 cal → 10%
+4. Adaptive target uses the exercise add-back with an overestimation haircut: discount the logged burn by 25%, then add back 50% (`base + 0.50 × (burn × 0.75)`). Both rates configurable in `Overview.md`.
 
 ### Logging Weight (Weigh-In)
 
@@ -295,13 +344,14 @@ Alcohol is always logged as a separate **Alcohol** meal entry:
 1. Calories logged under meal name "Alcohol"
 2. The next day's journal includes a note: total alcohol calories and percentage of daily target
 
-### Carb-Load Days
+### Day Styles (carb-load, refeed, sick, endurance, fasting)
 
-Two days before a long run (threshold configurable in `Overview.md`):
-- Targets shift: calories 2,400–2,600 (window metric), carbs 400–500g, fat ≤ 50g ceiling
-- Dashboard header shows `CARB-LOAD DAY 1/2` or `CARB-LOAD DAY 2/2`
-- Calorie bar switches to window metric (green only in-range, not ceiling-only)
-- Three-point cross-check at day-end: calories in range, carbs ≥ 400g, fat ≤ 50g
+Set `dayStyle` in `diet-today.js` to reshape the day's bars. The styles live in an extensible registry (canonical table in `Diet-Logging-Flow.md`; matching `STYLE_PROFILES` in the HTML). For example, on a carb-load style:
+- Calories render as a **window** (green only within `targets.calories`–`targets.caloriesCap`, not ceiling-only)
+- Fat becomes a **minimize-it ceiling** to free calorie room for carbs; carbs get a high floor
+- Activation cross-check at day-end: calories in window, carbs ≥ floor, fat ≤ cap
+
+Other styles: `refeed` (diet-break — pause the deficit, extra calories to carbs), `sick` (eat to maintenance, floor-miss flags off), `long-run`/`endurance` (glycogen carb bonus), `fasting` (optional, off by default). Rest vs. training is **not** a style — the exercise add-back handles it.
 
 ### Weekly Accountability (Sunday)
 
@@ -326,9 +376,11 @@ If the user corrects a value ("that was 350 not 300"):
 
 **The ASCII dashboard is configurable.** The 20-character bar width, colored emojis, flag thresholds, and adaptive calorie formula are all defined in `Diet-Dashboard-Guidelines.md`. Edit that file to change them.
 
-**Day types are yours to define.** The template suggests Rest/Training/Long Event but you can define whatever categories fit your schedule. The targets table in Overview.md adapts.
+**Day styles are an extensible registry.** The template ships normal, endurance, refeed, sick, carb-load, and fasting styles; adding one is a single row in the registry table in `Diet-Logging-Flow.md` plus a matching entry in the HTML's `STYLE_PROFILES` map. Each style sets which macros are floors, ceilings, or windows for the day.
 
-**Tiered adaptive targets prevent under-fueling high-volume training.** Normal sessions use 7% of exercise calories; sessions burning >1,500 cal use 10%. Both rates are conservative -- the system does not add back the full burn. Adjust the thresholds and rates in `Diet-Logging-Flow.md`.
+**The calorie haircut prevents over-fueling on noisy estimates.** Wearables and machines overestimate burn, so the system discounts the logged number (default 25%) before adding back only half of it. A 1,000-kcal logged session raises the target by ~375, not 500. Both rates are configurable in `Diet-Logging-Flow.md` / `Overview.md`.
+
+**Targets self-correct.** The setup wizard's BMR estimate is a seed. After 2–3 weeks of logging, the calibration loop compares your actual weight trend to the prediction and adjusts your TDEE — so the initial body-composition and sex inputs are low-stakes. See `Diet-Setup-Wizard.md`.
 
 **Weight tracking is optional.** If you don't have a scale, skip the Weight sheet and the HTML dashboard. The system works fine with just food and exercise data.
 

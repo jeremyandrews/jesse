@@ -26,105 +26,77 @@ Weight trend data changes once daily. Rebuilding Chart.js and all pace bars on e
 
 ## `diet-today.js` Contract
 
-`diet-today.js` lives at the vault root. It assigns exactly one global:
+`diet-today.js` lives at the vault root. It assigns exactly one global. This is the same contract as the spec in [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]] — keep the two in sync.
 
 ```javascript
 window.DIET_TODAY = {
   // Date context
-  date: "YYYY-MM-DD",           // e.g. "2026-05-02"
-  dayLabel: "Fri May 2",        // display label, no year
-  mode: null,                   // null, or string e.g. "CARB-LOAD DAY 1/2"
+  date: "YYYY-MM-DD",                 // e.g. "2026-05-02"
+  dayType: "Training day — 8 km run", // free-text human label, shown in the header
+  dayStyle: "normal",                 // machine field; key into STYLE_PROFILES / the Day-Style Registry
+  mode: null,                         // legacy free-text banner; null on normal days
 
-  // Calorie data
-  caloriesActual: 0,            // total calories logged today
-  caloriesTarget: 1900,         // adaptive target (baseline + exercise adjustment)
-  caloriesPct: 0,               // integer percent: (caloriesActual / caloriesTarget) * 100
-  baselineTarget: 1900,         // base target from Overview.md before exercise adjustment
-  exerciseCalories: 0,          // total exercise calories burned today
-  netCalories: 0,               // caloriesActual - exerciseCalories
+  // Targets (numbers from Overview.md / the registry, adjusted for exercise add-back)
+  targets: {
+    calories: 1942,                   // window floor on window days; the ceiling otherwise
+    caloriesCap: null,                // window upper bound (carb-load); null = pure ceiling
+    protein: 150,                     // protein floor
+    fat: 70,                          // fat cap (ceiling component of the window)
+    fatFloor: 35,                     // fat floor; null/absent = treat fat as a pure ceiling
+    carbs: 180                        // carb floor (remainder)
+  },
 
-  // Macro data
-  proteinActual: 0,
-  proteinTarget: 150,
-  carbsActual: 0,
-  carbsTarget: 180,
-  fatActual: 0,
-  fatTarget: 70,
-
-  // Remaining
-  caloriesRemaining: 1900,      // caloriesTarget - caloriesActual
-  proteinRemaining: 150,        // proteinTarget - proteinActual
+  // Weight (only on weigh-in days; null otherwise)
+  weight: null,                       // { lbs, kg, bf, mm } or null
 
   // Meals (one entry per meal logged today)
   meals: [
-    // {
-    //   name: "Breakfast",
-    //   items: [{ item, amount, grams, calories, protein, fat, carbs, notes }],
-    //   totals: { calories, protein, fat, carbs }
-    // }
+    // { name: "Breakfast", time: "07:30",
+    //   items: [{ item, amount, cal, p, f, c }] }
   ],
 
-  // Exercises (one entry per activity logged today)
-  exercises: [
-    // { type: "Run", description: "8.5km, 45 min", calories: 600 }
-  ],
-
-  // Flags (array of flag code strings; see Dynamic Sections for display mapping)
-  flags: [],
-
-  // Weight (if logged today; null if no weigh-in)
-  weightLbs: null,
-  weightKg: null,
+  // Exercise (one entry per activity logged today)
+  exercise: [
+    // { type: "Run", time: "06:15", desc: "Easy 8 km", calories: 600 }
+  ]
 };
 ```
 
 ### Meal item shape
 
 ```javascript
-{
-  item: "Oatmeal",
-  amount: "1 cup",
-  grams: 234,
-  calories: 166,
-  protein: 6,
-  fat: 4,
-  carbs: 28,
-  notes: ""
-}
+{ item: "Oatmeal", amount: "1 cup", cal: 166, p: 6, f: 4, c: 28 }
 ```
 
 ---
 
 ## HARD RULE: Field Name Contract
 
-The static HTML reads these exact property names from `window.DIET_TODAY`. **Do not change, abbreviate, or restructure them.** If you add a field, add it to this spec and the HTML renderer simultaneously. If you rename a field, update both in the same step.
+The HTML reads these exact property names from `window.DIET_TODAY`. **Do not change, abbreviate, or restructure them.** If you add a field, add it to this spec and the HTML renderer simultaneously. If you rename a field, update both in the same step.
 
 | Property | Type | Notes |
 |----------|------|-------|
 | `date` | string | ISO date |
-| `dayLabel` | string | Display label |
-| `mode` | string\|null | Active mode label or null |
-| `caloriesActual` | number | |
-| `caloriesTarget` | number | Adaptive target |
-| `caloriesPct` | number | Integer percent |
-| `baselineTarget` | number | Pre-exercise base |
-| `exerciseCalories` | number | 0 if no exercise |
-| `netCalories` | number | |
-| `proteinActual` | number | |
-| `proteinTarget` | number | |
-| `carbsActual` | number | |
-| `carbsTarget` | number | |
-| `fatActual` | number | |
-| `fatTarget` | number | |
-| `caloriesRemaining` | number | |
-| `proteinRemaining` | number | |
-| `meals` | array | |
-| `exercises` | array | |
-| `flags` | array | |
-| `weightLbs` | number\|null | |
-| `weightKg` | number\|null | |
+| `dayType` | string | Free-text human label (header) |
+| `dayStyle` | string | Key into `STYLE_PROFILES`; defaults to `normal` if absent |
+| `mode` | string\|null | Legacy banner; null on normal days |
+| `targets.calories` | number | Adaptive ceiling, or window floor on window days |
+| `targets.caloriesCap` | number\|null | Window upper bound; null = pure ceiling |
+| `targets.protein` | number | Protein floor |
+| `targets.fat` | number | Fat cap |
+| `targets.fatFloor` | number\|null | Fat floor; null/absent = fat is a pure ceiling |
+| `targets.carbs` | number | Carb floor |
+| `weight` | object\|null | `{ lbs, kg, bf, mm }` or null |
+| `weight.lbs` | number | |
+| `weight.kg` | number | |
+| `weight.bf` | number | Body-fat % (optional) |
+| `weight.mm` | number | Muscle mass (optional) |
+| `meals` | array | `{ name, time, items: [{ item, amount, cal, p, f, c }] }` |
+| `exercise` | array | `{ type, time, desc, calories, ... }` |
 
-**Never guess property names.** If the HTML reads `d.caloriesActual`, the JS must assign `caloriesActual:`, not `calories_actual:` or `cal:` or `actualCalories:`.
+Totals (calories, protein, fat, carbs) are summed from `meals[].items` by the renderer — they are **not** stored as fields. Exercise burn is summed from `exercise[].calories`.
+
+**Never guess property names.** If the HTML reads `t.calories`, the JS must assign `targets: { calories: … }`, not `caloriesTarget:` or `cal:`.
 
 ---
 
@@ -190,53 +162,72 @@ A text block below the bars. Content is written by the assistant at HTML rebuild
 
 These sections are re-rendered by JavaScript each time the browser loads `diet-today.js`. They operate on `window.DIET_TODAY`.
 
+### Day-Style Resolution: `STYLE_PROFILES`
+
+The HTML holds a `STYLE_PROFILES` map: `dayStyle` → `{ calType, fatType, carbInRemaining }`. It encodes **bar types only** — the target *numbers* come from `DIET_TODAY.targets`. This map must stay in sync with the canonical Day-Style Registry in [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]] (the HTML cannot read that markdown table). When a style is added to the registry, add the matching row here.
+
+```javascript
+var STYLE_PROFILES = {
+  'normal':              { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+  'long-run':            { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+  'endurance':           { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+  'refeed':              { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+  'sick':                { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+  'carb-load-training':  { calType: 'window',  fatType: 'minimize-ceiling', carbInRemaining: false },
+  'carb-load-race':      { calType: 'window',  fatType: 'minimize-ceiling', carbInRemaining: false },
+  'fasting':             { calType: 'ceiling', fatType: 'floor',            carbInRemaining: true  }
+};
+```
+
+Resolution: explicit `dayStyle` wins → else detect a `CARB-LOAD` marker in `dayType` (back-compat) → else `normal`.
+
 ### Macro Bars
 
-Rendered from the macro fields. One bar per metric, 20 blocks each (12×16 px):
+Rendered from `DIET_TODAY.targets` plus the resolved style. One bar per metric, 20 blocks each (12×16 px). Each bar carries a **goal chip** (a small colored marker showing its type), and a single compact **legend** sits at the bottom of the panel.
 
-- **Calories** — ceiling metric on normal days; floor metric on carb-load days (check `mode`)
-- **Net calories** — gray bar (`░` blocks, 12×16 px), shown only when `exerciseCalories > 0`
-- **Protein** — floor metric
-- **Carbs** — floor metric on normal days; floor metric with raised target on carb-load days
-- **Fat** — ceiling metric
+- **Calories** — `calType` (`ceiling` normally; `window` on carb-load, using `targets.calories` floor and `targets.caloriesCap`)
+- **Net calories** — gray bar, shown only when total exercise burn > 0
+- **Protein** — floor
+- **Carbs** — floor
+- **Fat** — `fatType` (`window` with `targets.fatFloor`/`targets.fat`; `minimize-ceiling` on carb-load; `floor` on fasting)
 
-Color zones for floor metrics (Protein, Carbs, normal-day Calories in carb-load mode):
-- 0–49%: red
-- 50–79%: amber
-- 80–100%+: green
+**Goal chips** — first token on each bar's info line: green `≥` (floor), blue `≤` (cap/ceiling), amber `↕` (window).
 
-Color zones for ceiling metrics (Fat, Calories on normal days):
-- 0–79%: green
-- 80–99%: amber
-- ≥100%: red + overage badge
+**Color zones** (bar colors are **never** time-gated):
+
+*Floor* (percent of floor): 0–49% red · 50–79% amber · 80–100% green · >100% green.
+*Ceiling / minimize-ceiling* (percent of cap): 0–79% green · 80–100% amber · >100% red.
+*Window* (vs floor and cap): below floor **red** · floor–80% of cap green · 80–100% of cap amber · over cap red. A window colors red when too **low**, unlike a pure ceiling.
+
+**Legend** — one compact line (~10px) at the bottom of the macro panel, each item fully colored (symbol *and* text the same color): `≥ floor` (green) · `≤ cap` (blue) · `↕ window` (amber).
+
+### Time-Gated Low Flags (HARD RULE)
+
+Under-floor textual flags (protein low, fat under floor, carbs low) render **only after `[LOW_FLAG_HOUR]`** (default 16): `if (new Date().getHours() >= LOW_FLAG_HOUR) …`. Over-cap flags (fat over cap, calories over) are **not** gated. **Bar colors are never gated** — only the textual flags. Define `LOW_FLAG_HOUR` as a single configurable constant in the script. Full flag table in [[Knowledge/Jesse-Guidelines/Diet-Dashboard-Guidelines]].
+
+| Flag | Trigger | Gated |
+|------|---------|-------|
+| `← low protein` | protein < ~90% of floor | after `LOW_FLAG_HOUR` |
+| `← fat under floor` | fat < `fatFloor` | after `LOW_FLAG_HOUR` |
+| `← low carbs` | carbs < floor | after `LOW_FLAG_HOUR` |
+| `← fat over cap` | fat > `fat` cap | never gated |
+| `← over calorie target` | calories over ceiling / window cap | never gated |
 
 ### Food Log
 
-Rendered from `DIET_TODAY.meals`. One table per meal: header row, item rows (Item, Amount, Cal, P, F, C), totals row.
+Rendered from `DIET_TODAY.meals`. One table per meal: header row, item rows (Item, Amount, Cal, P, F, C), subtotal, grand total. Totals are summed by the renderer.
 
 ### Exercise Cards
 
-Rendered from `DIET_TODAY.exercises`. One card per exercise: type, description, calories.
+Rendered from `DIET_TODAY.exercise`. One card per activity: type, time, description, stats, calories.
 
 ### Net Calorie Line
 
-Shown only when `exerciseCalories > 0`. Displays `netCalories / baselineTarget` in gray.
+Shown only when total exercise burn > 0. Displays net intake (total − burn) against the calorie target, in gray.
 
 ### Remaining Line
 
-Text: `Remaining (baseline): ~X cal, Xg protein`. From `caloriesRemaining` and `proteinRemaining`.
-
-### Flags Line
-
-One line per entry in `DIET_TODAY.flags`. Code-to-display mapping:
-
-| Flag code | Display text |
-|-----------|-------------|
-| `carbs_low` | `← low carbs` |
-| `protein_low_breakfast` | `← low protein at breakfast` |
-| `fat_approaching` | `← fat approaching limit` |
-| `calories_high` | `← approaching calorie limit` |
-| `calories_over` | `← over calorie target` |
+Text: `Remaining: ~X cal, Xg protein`. From `targets.calories − total calories` and `targets.protein − total protein` (floored at 0).
 
 ---
 
@@ -374,6 +365,7 @@ Coach's notes appear in the static HTML below the bars. They are regenerated at 
 - Reference actual values where meaningful ("pace range 0.9–1.1 lbs/wk, consistent for 10 days")
 - Do not recommend actions; let the data speak
 - Do not reference user-specific names, race dates, or values not derivable from the data object
+- **Surface a floor-miss trend** when one is active — a floor missed on `[FLOOR_MISS_COUNT]`+ of the trailing `[FLOOR_MISS_WINDOW]` logged days (defaults 3 of 7; protein < ~90% of floor, fat < floor). State it as a pattern ("protein under floor 4 of the last 7 days"), not a single-day nag. Definition in [[Knowledge/Jesse-Guidelines/Diet-Logging-Flow]].
 
 ### Continuity Rules
 
@@ -415,4 +407,4 @@ Context: [brief data summary — pace range, current weight, composition trend i
    - Net calories bar: `#9ca3af` (medium gray, `░`-style)
 6. **Dark mode** — use slightly desaturated variants; maintain contrast ratios
 7. **No emoji** in the HTML dashboard — use colored blocks only
-8. **No hardcoded user values** — all targets, phases, and goals are embedded from `Overview.md` at build time; none are hardcoded in the HTML template
+8. **No hardcoded user values** — all targets, phases, and goals come from the external data files (`diet-today.js`, etc.) at load time; none are hardcoded in the HTML shell. Adding the day-style `STYLE_PROFILES`, goal chips, legend, and gating must not introduce data into the shell — `STYLE_PROFILES` is *structural* (bar types only), not user data. Keep each renderer in its own `try/catch` and null-guard every `getElementById`.

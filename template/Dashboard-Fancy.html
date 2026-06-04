@@ -305,8 +305,31 @@ try {
         // =====================
         // 2. MACRO REMAINING BARS
         // =====================
+        // Under-floor "low" flags are hidden before this local hour (an unfilled
+        // floor mid-day is expected, not a problem). Configurable. [LOW_FLAG_HOUR]
+        var LOW_FLAG_HOUR = 16;
+
+        // Day-Style Registry: dayStyle -> bar TYPES only (numbers live in D.targets).
+        // Keep in sync with the canonical registry in Diet-Logging-Flow.md.
+        var STYLE_PROFILES = {
+            'normal':             { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+            'long-run':           { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+            'endurance':          { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+            'refeed':             { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+            'sick':               { calType: 'ceiling', fatType: 'window',           carbInRemaining: true  },
+            'carb-load-training': { calType: 'window',  fatType: 'minimize-ceiling', carbInRemaining: false },
+            'carb-load-race':     { calType: 'window',  fatType: 'minimize-ceiling', carbInRemaining: false },
+            'fasting':            { calType: 'ceiling', fatType: 'floor',            carbInRemaining: true  }
+        };
+        function resolveStyle(d) {
+            if (d.dayStyle && STYLE_PROFILES[d.dayStyle]) return STYLE_PROFILES[d.dayStyle];
+            if ((d.dayType || '').toUpperCase().indexOf('CARB-LOAD') >= 0) return STYLE_PROFILES['carb-load-race'];
+            return STYLE_PROFILES['normal'];
+        }
+        var style = resolveStyle(D);
         var t = D.targets || {};
-        var isCarb = (D.dayType || '').indexOf('CARB-LOAD') >= 0;
+        var showLowFlags = new Date().getHours() >= LOW_FLAG_HOUR;
+
         var macroP = document.getElementById('macroPanel');
         var macroB = document.getElementById('macroBars');
         var remLine = document.getElementById('remainingLine');
@@ -315,18 +338,50 @@ try {
         var exCal = 0;
         (D.exercise || []).forEach(function(ex) { exCal += ex.calories || 0; });
 
-        function macroBar(label, val, target, type) {
-            var pct = target > 0 ? Math.round(val / target * 100) : 0;
+        // --- color logic (bar colors are NEVER time-gated) ---
+        function floorColor(pct)   { return pct < 50 ? RED : pct < 80 ? YEL : GRN; }
+        function ceilingColor(pct) { return pct <= 79 ? GRN : pct <= 100 ? YEL : RED; }
+        function windowColor(val, floor, cap) {
+            if (floor != null && val < floor) return RED;          // too low
+            if (cap != null && cap > 0) {
+                var cp = val / cap * 100;
+                if (cp > 100) return RED;                          // over cap
+                if (cp >= 80) return YEL;                          // approaching cap
+            }
+            return GRN;                                            // in window
+        }
+
+        // --- goal chip: floor (>=, green), ceiling (<=, blue), window (up-down, amber) ---
+        function chip(kind) {
+            var map = { floor: { s: '≥', c: GRN }, ceiling: { s: '≤', c: BLU }, window: { s: '↕', c: YEL } };
+            var m = map[kind] || map.ceiling;
+            var sp = document.createElement('span');
+            sp.textContent = m.s;
+            sp.style.color = m.c;
+            sp.style.fontWeight = '700';
+            sp.style.marginRight = '6px';
+            sp.style.display = 'inline-block';
+            return sp;
+        }
+
+        // type: 'floor' | 'ceiling' | 'minimize-ceiling' | 'window'
+        function buildBar(label, type, val, floor, cap, infoStr, flags) {
+            var pct, color;
+            if (type === 'floor') {
+                pct = floor > 0 ? Math.round(val / floor * 100) : 0;
+                color = floorColor(pct);
+            } else if (type === 'window') {
+                pct = cap > 0 ? Math.round(val / cap * 100) : 0;
+                color = windowColor(val, floor, cap);
+            } else { // ceiling / minimize-ceiling
+                pct = cap > 0 ? Math.round(val / cap * 100) : 0;
+                color = ceilingColor(pct);
+            }
             var filled = Math.min(20, Math.round(pct * 20 / 100));
             if (pct >= 100) filled = 20;
-            var color;
-            if (type === 'floor') {
-                color = pct < 50 ? RED : pct < 80 ? YEL : GRN;
-            } else if (type === 'ceiling') {
-                color = pct <= 79 ? GRN : pct <= 100 ? YEL : RED;
-            } else {
-                color = pct < 92 ? RED : pct <= 100 ? GRN : RED;
-            }
+            if (filled < 0) filled = 0;
+            var chipKind = type === 'floor' ? 'floor' : type === 'window' ? 'window' : 'ceiling';
+
             var row = document.createElement('div');
             row.className = 'bar-row';
             var lbl = document.createElement('div');
@@ -344,21 +399,43 @@ try {
             row.appendChild(blocks);
             var info = document.createElement('div');
             info.className = 'bar-info';
-            var tgtStr = target.toLocaleString();
-            if (label === 'Cal') {
-                info.textContent = val + ' / ' + tgtStr + '  (' + pct + '%)';
-            } else {
-                info.textContent = Math.round(val*10)/10 + 'g / ' + target + 'g  (' + pct + '%)';
-            }
-            if (label === 'Protein' && pct < 25) { var sp = document.createElement('span'); sp.className='flag'; sp.textContent=' ← low'; info.appendChild(sp); }
-            if (label === 'Fat' && pct >= 80) { var sp = document.createElement('span'); sp.className='flag'; sp.textContent=' ← high'; info.appendChild(sp); }
+            info.appendChild(chip(chipKind));
+            var txt = document.createElement('span');
+            txt.textContent = infoStr;
+            info.appendChild(txt);
+            (flags || []).forEach(function(f) {
+                var sp = document.createElement('span');
+                sp.className = 'flag';
+                sp.textContent = ' ' + f;
+                info.appendChild(sp);
+            });
             row.appendChild(info);
             return row;
         }
 
         if (macroB) {
             macroB.innerHTML = '';
-            macroB.appendChild(macroBar('Cal', totCal, t.calories || 1900, isCarb ? 'window' : 'ceiling'));
+
+            // --- Calories: ceiling (normal) or window (carb-load) ---
+            var calTarget = t.calories || 1900;
+            var calCap = (t.caloriesCap != null) ? t.caloriesCap : null;
+            var calFlags = [], calInfo, calFloorArg, calCapArg;
+            if (style.calType === 'window') {
+                calFloorArg = calTarget;
+                calCapArg = (calCap != null) ? calCap : calTarget;
+                var calPctW = calCapArg > 0 ? Math.round(totCal / calCapArg * 100) : 0;
+                calInfo = totCal.toLocaleString() + ' / ' + calTarget.toLocaleString() + '–' + calCapArg.toLocaleString() + '  (' + calPctW + '%)';
+                if (totCal > calCapArg) calFlags.push('← over calorie target');
+            } else {
+                calFloorArg = null;
+                calCapArg = calTarget;
+                var calPctC = calTarget > 0 ? Math.round(totCal / calTarget * 100) : 0;
+                calInfo = totCal.toLocaleString() + ' / ' + calTarget.toLocaleString() + '  (' + calPctC + '%)';
+                if (totCal > calTarget) calFlags.push('← over calorie target');
+            }
+            macroB.appendChild(buildBar('Cal', style.calType, totCal, calFloorArg, calCapArg, calInfo, calFlags));
+
+            // --- Net line (informational, always gray-blue; never time-gated) ---
             if (exCal > 0) {
                 var netRow = document.createElement('div');
                 netRow.className = 'bar-row';
@@ -370,24 +447,24 @@ try {
                 var netBlocks = document.createElement('div');
                 netBlocks.className = 'bar-blocks';
                 var netVal = totCal - exCal;
-                var tgtCal = t.calories || 1900;
+                var tgtCal = calTarget;
                 var grossPct = tgtCal > 0 ? Math.round(totCal / tgtCal * 100) : 0;
                 var grossFilled = Math.min(20, Math.round(grossPct * 20 / 100));
                 var netPct = tgtCal > 0 ? Math.round(netVal / tgtCal * 100) : 0;
                 var netFilled = Math.max(0, Math.min(20, Math.round(netPct * 20 / 100)));
-                for (var i = 0; i < 20; i++) {
-                    var b = document.createElement('div');
-                    b.className = 'blk';
-                    if (i < netFilled) {
-                        b.style.background = BLU;
-                    } else if (i < grossFilled) {
-                        b.style.background = 'repeating-linear-gradient(45deg,' + BLU + ',' + BLU + ' 2px, transparent 2px, transparent 4px)';
-                        b.style.border = '1px solid ' + BLU;
-                        b.style.boxSizing = 'border-box';
+                for (var n = 0; n < 20; n++) {
+                    var nb = document.createElement('div');
+                    nb.className = 'blk';
+                    if (n < netFilled) {
+                        nb.style.background = BLU;
+                    } else if (n < grossFilled) {
+                        nb.style.background = 'repeating-linear-gradient(45deg,' + BLU + ',' + BLU + ' 2px, transparent 2px, transparent 4px)';
+                        nb.style.border = '1px solid ' + BLU;
+                        nb.style.boxSizing = 'border-box';
                     } else {
-                        b.style.background = EMPTY;
+                        nb.style.background = EMPTY;
                     }
-                    netBlocks.appendChild(b);
+                    netBlocks.appendChild(nb);
                 }
                 netRow.appendChild(netBlocks);
                 var netInfo = document.createElement('div');
@@ -396,9 +473,58 @@ try {
                 netRow.appendChild(netInfo);
                 macroB.appendChild(netRow);
             }
-            macroB.appendChild(macroBar('Protein', totP, t.protein || 150, 'floor'));
-            macroB.appendChild(macroBar('Carbs', totC, t.carbs || 180, 'floor'));
-            macroB.appendChild(macroBar('Fat', totF, t.fat || 70, 'ceiling'));
+
+            // --- Protein: floor ---
+            var pTarget = t.protein || 150;
+            var pPct = pTarget > 0 ? Math.round(totP / pTarget * 100) : 0;
+            var pFlags = [];
+            if (showLowFlags && totP < pTarget * 0.9) pFlags.push('← low protein');
+            macroB.appendChild(buildBar('Protein', 'floor', totP, pTarget, null,
+                Math.round(totP * 10) / 10 + 'g / ' + pTarget + 'g  (' + pPct + '%)', pFlags));
+
+            // --- Carbs: floor ---
+            var cTarget = t.carbs || 180;
+            var cPct = cTarget > 0 ? Math.round(totC / cTarget * 100) : 0;
+            var cFlags = [];
+            if (showLowFlags && totC < cTarget) cFlags.push('← low carbs');
+            macroB.appendChild(buildBar('Carbs', 'floor', totC, cTarget, null,
+                Math.round(totC * 10) / 10 + 'g / ' + cTarget + 'g  (' + cPct + '%)', cFlags));
+
+            // --- Fat: window (normal) | minimize-ceiling (carb-load) | floor (fasting) ---
+            var fCap = t.fat || 70;
+            var fFloor = (t.fatFloor != null) ? t.fatFloor : null;
+            var fFlags = [], fInfo, fBarType, fFloorArg, fCapArg;
+            if (style.fatType === 'window' && fFloor != null) {
+                fBarType = 'window'; fFloorArg = fFloor; fCapArg = fCap;
+                var fPctW = fCap > 0 ? Math.round(totF / fCap * 100) : 0;
+                fInfo = Math.round(totF * 10) / 10 + 'g / ' + fFloor + '–' + fCap + 'g  (' + fPctW + '%)';
+                if (showLowFlags && totF < fFloor) fFlags.push('← fat under floor');
+                if (totF > fCap) fFlags.push('← fat over cap');
+            } else if (style.fatType === 'floor') {
+                fBarType = 'floor'; fFloorArg = (fFloor != null) ? fFloor : fCap; fCapArg = null;
+                var fPctF = fFloorArg > 0 ? Math.round(totF / fFloorArg * 100) : 0;
+                fInfo = Math.round(totF * 10) / 10 + 'g / ' + fFloorArg + 'g  (' + fPctF + '%)';
+                if (showLowFlags && totF < fFloorArg) fFlags.push('← fat under floor');
+            } else { // minimize-ceiling, or window with no floor defined (back-compat)
+                fBarType = 'ceiling'; fFloorArg = null; fCapArg = fCap;
+                var fPctC = fCap > 0 ? Math.round(totF / fCap * 100) : 0;
+                fInfo = Math.round(totF * 10) / 10 + 'g / ' + fCap + 'g  (' + fPctC + '%)';
+                if (totF > fCap) fFlags.push('← fat over cap');
+            }
+            macroB.appendChild(buildBar('Fat', fBarType, totF, fFloorArg, fCapArg, fInfo, fFlags));
+
+            // --- Legend (bottom of panel; each item fully colored) ---
+            var legend = document.createElement('div');
+            legend.style.fontSize = '10px';
+            legend.style.marginTop = '10px';
+            legend.style.lineHeight = '1.4';
+            legend.innerHTML =
+                '<span style="color:' + GRN + '">≥ floor (at or above)</span>' +
+                '<span style="color:var(--text2)">  ·  </span>' +
+                '<span style="color:' + BLU + '">≤ cap (at or under)</span>' +
+                '<span style="color:var(--text2)">  ·  </span>' +
+                '<span style="color:' + YEL + '">↕ window (in range)</span>';
+            macroB.appendChild(legend);
         }
 
         if (remLine) {
